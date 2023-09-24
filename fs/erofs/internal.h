@@ -47,10 +47,12 @@ typedef u64 erofs_off_t;
 /* data type for filesystem-wide blocks number */
 typedef u32 erofs_blk_t;
 
-struct erofs_device_info {
+struct erofs_device_info
+{
 	char *path;
 	struct erofs_fscache *fscache;
 	struct block_device *bdev;
+	struct file *blobfile;
 	struct dax_device *dax_dev;
 	u64 dax_part_off;
 
@@ -58,13 +60,15 @@ struct erofs_device_info {
 	u32 mapped_blkaddr;
 };
 
-enum {
+enum
+{
 	EROFS_SYNC_DECOMPRESS_AUTO,
 	EROFS_SYNC_DECOMPRESS_FORCE_ON,
 	EROFS_SYNC_DECOMPRESS_FORCE_OFF
 };
 
-struct erofs_mount_opts {
+struct erofs_mount_opts
+{
 #ifdef CONFIG_EROFS_FS_ZIP
 	/* current strategy of how to use managed cache */
 	unsigned char cache_strategy;
@@ -78,33 +82,39 @@ struct erofs_mount_opts {
 	char *fsid;
 };
 
-struct erofs_dev_context {
+struct erofs_dev_context
+{
 	struct idr tree;
 	struct rw_semaphore rwsem;
 
 	unsigned int extra_devices;
 };
 
-struct erofs_fs_context {
+struct erofs_fs_context
+{
 	struct erofs_mount_opts opt;
 	struct erofs_dev_context *devs;
 	char *bootstrap_path;
+	char *blob_dir_path;
 };
 
 /* all filesystem-wide lz4 configurations */
-struct erofs_sb_lz4_info {
+struct erofs_sb_lz4_info
+{
 	/* # of pages needed for EROFS lz4 rolling decompression */
 	u16 max_distance_pages;
 	/* maximum possible blocks for pclusters in the filesystem */
 	u16 max_pclusterblks;
 };
 
-struct erofs_fscache {
+struct erofs_fscache
+{
 	struct fscache_cookie *cookie;
 	struct inode *inode;
 };
 
-struct erofs_sb_info {
+struct erofs_sb_info
+{
 	struct erofs_mount_opts opt; /* options */
 #ifdef CONFIG_EROFS_FS_ZIP
 	/* list for all registered superblocks, mainly for shrinker */
@@ -122,8 +132,11 @@ struct erofs_sb_info {
 
 	struct erofs_sb_lz4_info lz4;
 #endif /* CONFIG_EROFS_FS_ZIP */
+	struct path blob_dir;
 	struct file *bootstrap;
+	char *blob_dir_path;
 	char *bootstrap_path;
+
 	struct erofs_dev_context *devs;
 	struct dax_device *dax_dev;
 	u64 dax_part_off;
@@ -175,11 +188,13 @@ struct erofs_sb_info {
 #define set_opt(opt, option) ((opt)->mount_opt |= EROFS_MOUNT_##option)
 #define test_opt(opt, option) ((opt)->mount_opt & EROFS_MOUNT_##option)
 
-static inline bool erofs_is_fscache_mode(struct super_block *sb) {
+static inline bool erofs_is_fscache_mode(struct super_block *sb)
+{
 	return IS_ENABLED(CONFIG_EROFS_FS_ONDEMAND) && !sb->s_bdev;
 }
 
-enum {
+enum
+{
 	EROFS_ZIP_CACHE_DISABLED,
 	EROFS_ZIP_CACHE_READAHEAD,
 	EROFS_ZIP_CACHE_READAROUND
@@ -189,7 +204,8 @@ enum {
 #define EROFS_LOCKED_MAGIC (INT_MIN | 0xE0F510CCL)
 
 /* basic unit of the workstation of a super_block */
-struct erofs_workgroup {
+struct erofs_workgroup
+{
 	/* the workgroup index in the workstation */
 	pgoff_t index;
 
@@ -198,9 +214,11 @@ struct erofs_workgroup {
 };
 
 static inline bool erofs_workgroup_try_to_freeze(struct erofs_workgroup *grp,
-												 int val) {
+												 int val)
+{
 	preempt_disable();
-	if (val != atomic_cmpxchg(&grp->refcount, val, EROFS_LOCKED_MAGIC)) {
+	if (val != atomic_cmpxchg(&grp->refcount, val, EROFS_LOCKED_MAGIC))
+	{
 		preempt_enable();
 		return false;
 	}
@@ -208,7 +226,8 @@ static inline bool erofs_workgroup_try_to_freeze(struct erofs_workgroup *grp,
 }
 
 static inline void erofs_workgroup_unfreeze(struct erofs_workgroup *grp,
-											int orig_val) {
+											int orig_val)
+{
 	/*
 	 * other observers should notice all modifications
 	 * in the freezing period.
@@ -218,7 +237,8 @@ static inline void erofs_workgroup_unfreeze(struct erofs_workgroup *grp,
 	preempt_enable();
 }
 
-static inline int erofs_wait_on_workgroup_freezed(struct erofs_workgroup *grp) {
+static inline int erofs_wait_on_workgroup_freezed(struct erofs_workgroup *grp)
+{
 	return atomic_cond_read_relaxed(&grp->refcount,
 									VAL != EROFS_LOCKED_MAGIC);
 }
@@ -239,13 +259,15 @@ static inline int erofs_wait_on_workgroup_freezed(struct erofs_workgroup *grp) {
 #error erofs cannot be used in this platform
 #endif
 
-enum erofs_kmap_type {
+enum erofs_kmap_type
+{
 	EROFS_NO_KMAP,	   /* don't map the buffer */
 	EROFS_KMAP,		   /* use kmap() to map the buffer */
 	EROFS_KMAP_ATOMIC, /* use kmap_atomic() to map the buffer */
 };
 
-struct erofs_buf {
+struct erofs_buf
+{
 	struct page *page;
 	void *base;
 	enum erofs_kmap_type kmap_type;
@@ -258,7 +280,8 @@ struct erofs_buf {
 #define erofs_blkoff(addr) ((addr) % EROFS_BLKSIZ)
 #define blknr_to_addr(nr) ((erofs_off_t)(nr)*EROFS_BLKSIZ)
 
-static inline erofs_off_t iloc(struct erofs_sb_info *sbi, erofs_nid_t nid) {
+static inline erofs_off_t iloc(struct erofs_sb_info *sbi, erofs_nid_t nid)
+{
 	return blknr_to_addr(sbi->meta_blkaddr) + (nid << sbi->islotbits);
 }
 
@@ -285,7 +308,8 @@ EROFS_FEATURE_FUNCS(sb_chksum, compat, COMPAT_SB_CHKSUM)
 #define EROFS_I_BL_XATTR_BIT (BITS_PER_LONG - 1)
 #define EROFS_I_BL_Z_BIT (BITS_PER_LONG - 2)
 
-struct erofs_inode {
+struct erofs_inode
+{
 	erofs_nid_t nid;
 
 	/* atomic flags (including bitlocks) */
@@ -325,13 +349,15 @@ struct erofs_inode {
 #define EROFS_I(ptr) \
 	container_of(ptr, struct erofs_inode, vfs_inode)
 
-static inline unsigned long erofs_inode_datablocks(struct inode *inode) {
+static inline unsigned long erofs_inode_datablocks(struct inode *inode)
+{
 	/* since i_size cannot be changed */
 	return DIV_ROUND_UP(inode->i_size, EROFS_BLKSIZ);
 }
 
 static inline unsigned int erofs_bitrange(unsigned int value, unsigned int bit,
-										  unsigned int bits) {
+										  unsigned int bits)
+{
 
 	return (value >> bit) & ((1 << bits) - 1);
 }
